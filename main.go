@@ -27,12 +27,10 @@ func (cfg *apiConfig) readServerHits(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, fmt.Sprintf(string(content), cfg.fileserverHits.Load()))
-	// fmt.Fprintf(w, fmt.Sprintf("Hits: %v", cfg.fileserverHits.Load()))
 }
 func (cfg *apiConfig) resetServerHits(w http.ResponseWriter, r *http.Request) {
 	cfg.fileserverHits.Store(0)
 	w.Write([]byte("Reset done"))
-
 }
 
 func main() {
@@ -46,6 +44,7 @@ func main() {
 	}))
 	serveMux.HandleFunc("GET /admin/metrics", cf.readServerHits)
 	serveMux.HandleFunc("POST /admin/reset", cf.resetServerHits)
+	serveMux.HandleFunc("POST /api/validate_chirp", validate_chirp)
 	httpServe := http.Server{Handler: serveMux, Addr: ":8080"}
 	log.Fatal(httpServe.ListenAndServe())
 }
