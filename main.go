@@ -16,13 +16,6 @@ type apiConfig struct {
 	dbconfig       *database.Queries
 }
 
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.fileserverHits.Add(1)
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
 	godotenv.Load()
 	serveMux := http.NewServeMux()
@@ -36,11 +29,7 @@ func main() {
 		dbconfig: dbQueries,
 	}
 	serveMux.Handle("/app/", cf.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
-	serveMux.HandleFunc("GET /api/healthz", (func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
+	serveMux.HandleFunc("GET /api/healthz", healthStatus)
 	serveMux.HandleFunc("GET /admin/metrics", cf.readServerHits)
 	serveMux.HandleFunc("POST /admin/reset", cf.resetServerHits)
 	serveMux.HandleFunc("POST /api/validate_chirp", validate_chirp)
