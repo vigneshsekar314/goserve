@@ -1,7 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"database/sql"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/vigneshsekar314/goserve/internal/database"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +13,7 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	dbconfig       *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -19,23 +23,18 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *apiConfig) readServerHits(w http.ResponseWriter, r *http.Request) {
-	content, err := os.ReadFile("./metrics.html")
-	if err != nil {
-		fmt.Fprintf(w, "page not found")
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, fmt.Sprintf(string(content), cfg.fileserverHits.Load()))
-}
-func (cfg *apiConfig) resetServerHits(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits.Store(0)
-	w.Write([]byte("Reset done"))
-}
-
 func main() {
+	godotenv.Load()
 	serveMux := http.NewServeMux()
-	cf := apiConfig{}
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("error connect to db: %s", err)
+	}
+	dbQueries := database.New(db)
+	cf := apiConfig{
+		dbconfig: dbQueries,
+	}
 	serveMux.Handle("/app/", cf.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("GET /api/healthz", (func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
