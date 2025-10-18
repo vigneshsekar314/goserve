@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/vigneshsekar314/goserve/internal/database"
+	"log"
 	"net/http"
 	"os"
 )
@@ -12,6 +14,56 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 		cfg.fileserverHits.Add(1)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
+	var chirp ChirpRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&chirp); err != nil {
+		w.WriteHeader(400)
+		log.Printf("error in decoding request: %s/n", err)
+		return
+	}
+	log.Printf(".user_id: %s and .body: %s", chirp.UserId, chirp.Body)
+
+	validJson, err := validate_chirp(chirp)
+	if err != nil {
+		w.WriteHeader(400)
+		log.Printf("error in validation: %s/n", err)
+		res, err := json.Marshal(ErrorJson{Error: err.Error()})
+		if err != nil {
+			log.Printf("error in error marshal: %s/n", err)
+			w.WriteHeader(400)
+			return
+		}
+		w.Write(res)
+		return
+	}
+
+	newChirp, err := cfg.dbconfig.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body:   validJson.CleanedBody,
+		UserID: chirp.UserId,
+	})
+	chirpResponse := ChirpResponse{
+		Id:        newChirp.ID,
+		Body:      newChirp.Body,
+		CreatedAt: newChirp.CreatedAt,
+		UpdatedAt: newChirp.UpdatedAt,
+		UserId:    newChirp.UserID,
+	}
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("error creating chirp: %s\n", err)
+		return
+	}
+	newChirpBytes, err := json.Marshal(chirpResponse)
+	if err != nil {
+		w.WriteHeader(500)
+		log.Printf("error in marshaling newChirp: %s/n", err)
+		return
+	}
+	w.WriteHeader(201)
+	w.Write(newChirpBytes)
 }
 
 func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {

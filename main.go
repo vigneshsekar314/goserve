@@ -35,8 +35,9 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", healthStatus)
 	serveMux.HandleFunc("GET /admin/metrics", cf.readServerHits)
 	serveMux.HandleFunc("POST /admin/reset", cf.resetServerHits)
-	serveMux.HandleFunc("POST /api/validate_chirp", validate_chirp)
+	// serveMux.HandleFunc("POST /api/validate_chirp", validate_chirp)
 	serveMux.HandleFunc("POST /api/users", cf.handleUsers)
+	serveMux.HandleFunc("POST /api/chirps", cf.handleChirps)
 	httpServe := http.Server{Handler: serveMux, Addr: ":8080"}
 	log.Printf("Server listening on port %v", httpServe.Addr)
 	log.Fatal(httpServe.ListenAndServe())
