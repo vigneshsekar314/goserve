@@ -2,14 +2,13 @@ package main
 
 import (
 	"database/sql"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/vigneshsekar314/goserve/internal/database"
 	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
-
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"github.com/vigneshsekar314/goserve/internal/database"
 )
 
 type apiConfig struct {
@@ -35,9 +34,10 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", healthStatus)
 	serveMux.HandleFunc("GET /admin/metrics", cf.readServerHits)
 	serveMux.HandleFunc("POST /admin/reset", cf.resetServerHits)
-	// serveMux.HandleFunc("POST /api/validate_chirp", validate_chirp)
 	serveMux.HandleFunc("POST /api/users", cf.handleUsers)
-	serveMux.HandleFunc("POST /api/chirps", cf.handleChirps)
+	serveMux.HandleFunc("GET /api/chirps/{chirp_id}", cf.handleGetChirp)
+	serveMux.HandleFunc("GET /api/chirps", cf.handleGetAllChirps)
+	serveMux.HandleFunc("POST /api/chirps", cf.handleCreateChirp)
 	httpServe := http.Server{Handler: serveMux, Addr: ":8080"}
 	log.Printf("Server listening on port %v", httpServe.Addr)
 	log.Fatal(httpServe.ListenAndServe())

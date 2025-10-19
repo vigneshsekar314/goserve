@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/vigneshsekar314/goserve/internal/database"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/google/uuid"
+	"github.com/vigneshsekar314/goserve/internal/database"
 )
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -16,7 +18,7 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	})
 }
 
-func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) {
 	var chirp ChirpRequest
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&chirp); err != nil {
@@ -64,6 +66,70 @@ func (cfg *apiConfig) handleChirps(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(201)
 	w.Write(newChirpBytes)
+}
+func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
+	chirp_id := r.PathValue("chirp_id")
+	if chirp_id == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Invalid API path"))
+		return
+	}
+	uuidChirp, err := uuid.Parse(chirp_id)
+	if err != nil {
+		log.Printf("unable to parse uuid from url: %s\n", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	chirpData, err := cfg.dbconfig.GetChirp(r.Context(), uuidChirp)
+
+	if err != nil {
+		log.Printf("chirp not found: %s\n", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	chirpRes := ChirpResponse{
+		Id:        chirpData.ID,
+		Body:      chirpData.Body,
+		CreatedAt: chirpData.CreatedAt,
+		UpdatedAt: chirpData.UpdatedAt,
+		UserId:    chirpData.UserID,
+	}
+	data, err := json.Marshal(chirpRes)
+	if err != nil {
+		log.Printf("error marshaling chirpData: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.dbconfig.GetAllChirps(r.Context())
+	if err != nil {
+		log.Printf("error retrieving chirps: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	allChirps := make([]ChirpResponse, 0)
+	for _, chirp := range chirps {
+		allChirps = append(allChirps, ChirpResponse{
+			Id:        chirp.ID,
+			Body:      chirp.Body,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			UserId:    chirp.UserID,
+		})
+	}
+	data, err := json.Marshal(allChirps)
+	if err != nil {
+		log.Printf("error parsing all chirps: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
 }
 
 func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
