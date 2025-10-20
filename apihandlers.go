@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/vigneshsekar314/goserve/internal/auth"
 	"github.com/vigneshsekar314/goserve/internal/database"
 )
 
@@ -132,22 +133,69 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 	w.Write(data)
 }
 
+func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var loginReq createAndLoginUserReq
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginReq); err != nil {
+		log.Printf("error in decoding user request %s\n", err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Request is invalid"))
+		return
+	}
+	user, err := cfg.dbconfig.GetUser(r.Context(), loginReq.Email)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(EMAILPASSERR))
+		return
+	}
+	match, err := auth.CheckPasswordHash(loginReq.Password, user.HashedPassword)
+	if err != nil || !match {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(EMAILPASSERR))
+		return
+	}
+	loginResp := createLoginUserRes{
+		Id:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	}
+	respBytes, err := json.Marshal(loginResp)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("error marshaling response %s\n", err)
+		return
+	}
+	w.Write(respBytes)
+	w.WriteHeader(http.StatusOK)
+}
+
 func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
 
-	var createRq createUserReq
+	var createRq createAndLoginUserReq
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createRq); err != nil {
 		w.WriteHeader(500)
 		fmt.Printf("error parsing request, %s", err)
 		return
 	}
-	user, err := cfg.dbconfig.CreateUser(r.Context(), createRq.Email)
+	// hash password
+	hashedPwd, err := auth.HashPassword(createRq.Password)
+	if err != nil {
+		log.Printf("error in hashing password: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	user, err := cfg.dbconfig.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          createRq.Email,
+		HashedPassword: hashedPwd,
+	})
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Printf("error creating user, %s", err)
 		return
 	}
-	createUserRsp := createUserRes{
+	createUserRsp := createLoginUserRes{
 		Id:        user.ID,
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,

@@ -6,13 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
-type createUserReq struct {
-	Email string `json:"email"`
+type createAndLoginUserReq struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
-type createUserRes struct {
+type createLoginUserRes struct {
 	Id        uuid.UUID `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Email     string    `json:"email"`
 }
+
+const EMAILPASSERR string = "Incorrect email or password"
