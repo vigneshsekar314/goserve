@@ -133,6 +133,10 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 	w.Write(data)
 }
 
+// handleLogin authenticates a user by validating their email and password.
+// It expects a JSON request body with email and password fields.
+// Returns 200 with user details on successful authentication,
+// 400 for invalid request format, or 401 for invalid credentials.
 func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var loginReq createAndLoginUserReq
 	decoder := json.NewDecoder(r.Body)
@@ -166,8 +170,8 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error marshaling response %s\n", err)
 		return
 	}
-	w.Write(respBytes)
 	w.WriteHeader(http.StatusOK)
+	w.Write(respBytes)
 }
 
 func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
