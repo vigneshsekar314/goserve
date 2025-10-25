@@ -41,6 +41,7 @@ func main() {
 	serveMux.HandleFunc("PUT /api/users", cf.handleUpdateUsers)
 	serveMux.HandleFunc("POST /api/login", cf.handleLogin)
 	serveMux.HandleFunc("GET /api/chirps/{chirp_id}", cf.handleGetChirp)
+	serveMux.HandleFunc("DELETE /api/chirps/{chirp_id}", cf.handleDeleteChirp)
 	serveMux.HandleFunc("GET /api/chirps", cf.handleGetAllChirps)
 	serveMux.HandleFunc("POST /api/chirps", cf.handleCreateChirp)
 	serveMux.HandleFunc("POST /api/refresh", cf.handleRefreshToken)

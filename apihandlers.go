@@ -351,6 +351,46 @@ func (cfg *apiConfig) handleUpdateUsers(w http.ResponseWriter, r *http.Request) 
 	w.Write(res_bytes)
 }
 
+func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	bearToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("no bearer token / invalid token: %s\n", err)
+		http.Error(w, "no bearer token / invalid token", http.StatusUnauthorized)
+		return
+	}
+	user_id, err := auth.ValidateJWT(bearToken, cfg.auth_token)
+	if err != nil {
+		log.Printf("invalid bearer token: %s\n", err)
+		http.Error(w, "invalid bearer token", http.StatusUnauthorized)
+		return
+	}
+	chirp_idstring := r.PathValue("chirp_id")
+	chirp_id, err := uuid.Parse(chirp_idstring)
+	if err != nil {
+		log.Printf("unable to parse chirp id: %s\n", err)
+		http.Error(w, "unable to parse chirp id", http.StatusInternalServerError)
+		return
+	}
+	chirp_data, err := cfg.dbconfig.GetChirp(r.Context(), chirp_id)
+	if err != nil {
+		log.Printf("invalid chirp id or chirp does not exists: %s\n", err)
+		http.Error(w, "invalid chirp id or chirp does not exists", http.StatusNotFound)
+		return
+	}
+	if chirp_data.UserID != user_id {
+		log.Printf("user not authorized to delete chirp. request user_id: %s and chirp owner user_id: %s", user_id, chirp_data.UserID)
+		http.Error(w, "user not authorized to delete chirp", http.StatusForbidden)
+		return
+	}
+	// delete chirp
+	if err := cfg.dbconfig.DeleteUsers(r.Context()); err != nil {
+		log.Printf("error deleting chirp: %s\n", err)
+		http.Error(w, "error deleting chirp", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (cfg *apiConfig) readServerHits(w http.ResponseWriter, r *http.Request) {
 	content, err := os.ReadFile("./metrics.html")
 	if err != nil {
