@@ -301,6 +301,56 @@ func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
 	w.Write(rs)
 }
 
+func (cfg *apiConfig) handleUpdateUsers(w http.ResponseWriter, r *http.Request) {
+	access_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("no access_token / invalid access_token: %s\n", err)
+		http.Error(w, "no access_token / invalid access_token", http.StatusUnauthorized)
+		return
+	}
+	user_id, err := auth.ValidateJWT(access_token, cfg.auth_token)
+	if err != nil {
+		log.Printf("access_token invalid: %s\n", err)
+		http.Error(w, "invalid access_token", http.StatusUnauthorized)
+		return
+	}
+	var request createAndLoginUserReq
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		log.Printf("error decoding request: %s\n", err)
+		http.Error(w, "error decoding request", http.StatusInternalServerError)
+		return
+	}
+	hashedPwd, err := auth.HashPassword(request.Password)
+	if err != nil {
+		log.Printf("error in hashing password: %s\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	user, err := cfg.dbconfig.UpdateUser(r.Context(), database.UpdateUserParams{
+		Email:          request.Email,
+		HashedPassword: hashedPwd,
+		ID:             user_id,
+	})
+	if err != nil {
+		log.Printf("error updating user email and hashed password: %s", err)
+		http.Error(w, "error updating user email and hashed password", http.StatusInternalServerError)
+	}
+	response := createLoginUserRes{
+		Id:        user.ID,
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+	res_bytes, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("error marshaling response: %s\n", err)
+		http.Error(w, "error marshaling response", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(res_bytes)
+}
+
 func (cfg *apiConfig) readServerHits(w http.ResponseWriter, r *http.Request) {
 	content, err := os.ReadFile("./metrics.html")
 	if err != nil {
