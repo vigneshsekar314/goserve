@@ -16,6 +16,7 @@ type apiConfig struct {
 	dbconfig       *database.Queries
 	environment    string
 	auth_token     string
+	polka_key      string
 }
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 		dbconfig:    dbQueries,
 		environment: os.Getenv("PLATFORM"),
 		auth_token:  btoken,
+		polka_key:   os.Getenv("POLKA_KEY"),
 	}
 	serveMux.Handle("/app/", cf.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("GET /api/healthz", healthStatus)

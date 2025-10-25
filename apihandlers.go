@@ -405,7 +405,18 @@ func (cfg *apiConfig) handlePolkaRedWebhooks(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	_, err := cfg.dbconfig.UpgradeUser(r.Context(), request.Data.UserId)
+	api_key, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		log.Printf("API key not found: %s\n", err)
+		http.Error(w, "API key not found", http.StatusUnauthorized)
+		return
+	}
+	if api_key != cfg.polka_key {
+		log.Print("invalid API key\n")
+		http.Error(w, "invalid API key\n", http.StatusUnauthorized)
+		return
+	}
+	_, err = cfg.dbconfig.UpgradeUser(r.Context(), request.Data.UserId)
 	if err != nil {
 		log.Printf("user not found: %s", err)
 		http.Error(w, "user not found", http.StatusNotFound)
