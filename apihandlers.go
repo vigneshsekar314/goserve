@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/vigneshsekar314/goserve/internal/auth"
@@ -27,7 +28,25 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		log.Printf("error in decoding request: %s/n", err)
 		return
 	}
-	log.Printf(".user_id: %s and .body: %s", chirp.UserId, chirp.Body)
+	// log.Printf(".user_id: %v and .body: %s", chirp.UserId, chirp.Body)
+	// authenticate user
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("error fetching token: %s\n", err)
+		http.Error(w, "error fetching auth token", http.StatusUnauthorized)
+		return
+	}
+	user_id, err := auth.ValidateJWT(token, cfg.auth_token)
+	if err != nil {
+		log.Printf("user unauthorized: %s\n", err)
+		http.Error(w, "auth token unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// if chirp.UserId != user_uuid {
+	// 	log.Printf("user unauthorized, payload userid does not match auth userid. payload_userid: %v and auth_userid: %v\n", chirp.UserId, user_uuid)
+	// 	http.Error(w, "auth token unauthorized", http.StatusUnauthorized)
+	// 	return
+	// }
 
 	validJson, err := validate_chirp(chirp)
 	if err != nil {
@@ -45,7 +64,7 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 
 	newChirp, err := cfg.dbconfig.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   validJson.CleanedBody,
-		UserID: chirp.UserId,
+		UserID: user_id,
 	})
 	chirpResponse := ChirpResponse{
 		Id:        newChirp.ID,
@@ -146,6 +165,11 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Request is invalid"))
 		return
 	}
+	expiry_in_secs := 60 * 60
+	if loginReq.ExpiresInSeconds > 0 && loginReq.ExpiresInSeconds < expiry_in_secs {
+		expiry_in_secs = loginReq.ExpiresInSeconds
+	}
+
 	user, err := cfg.dbconfig.GetUser(r.Context(), loginReq.Email)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -158,11 +182,14 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(EMAILPASSERR))
 		return
 	}
+	// generate jwt
+	signedToken, err := auth.MakeJWT(user.ID, cfg.auth_token, time.Duration(expiry_in_secs)*time.Second)
 	loginResp := createLoginUserRes{
 		Id:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     signedToken,
 	}
 	respBytes, err := json.Marshal(loginResp)
 	if err != nil {

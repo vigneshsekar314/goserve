@@ -15,12 +15,14 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	dbconfig       *database.Queries
 	environment    string
+	auth_token     string
 }
 
 func main() {
 	godotenv.Load()
 	serveMux := http.NewServeMux()
 	dbURL := os.Getenv("DB_URL")
+	btoken := os.Getenv("BTOKEN")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("error connect to db: %s", err)
@@ -29,6 +31,7 @@ func main() {
 	cf := apiConfig{
 		dbconfig:    dbQueries,
 		environment: os.Getenv("PLATFORM"),
+		auth_token:  btoken,
 	}
 	serveMux.Handle("/app/", cf.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir(".")))))
 	serveMux.HandleFunc("GET /api/healthz", healthStatus)
