@@ -46,6 +46,7 @@ func main() {
 	serveMux.HandleFunc("POST /api/chirps", cf.handleCreateChirp)
 	serveMux.HandleFunc("POST /api/refresh", cf.handleRefreshToken)
 	serveMux.HandleFunc("POST /api/revoke", cf.handleRevokeToken)
+	serveMux.HandleFunc("POST /api/polka/webhooks", cf.handlePolkaRedWebhooks)
 	httpServe := http.Server{Handler: serveMux, Addr: ":8080"}
 	log.Printf("Server listening on port %v", httpServe.Addr)
 	log.Fatal(httpServe.ListenAndServe())

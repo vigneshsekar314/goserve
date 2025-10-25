@@ -202,6 +202,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        signedToken,
 		RefreshToken: refresh_token,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 	respBytes, err := json.Marshal(loginResp)
 	if err != nil {
@@ -286,10 +287,11 @@ func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	createUserRsp := createLoginUserRes{
-		Id:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		Id:          user.ID,
+		Email:       user.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 	rs, err := json.Marshal(createUserRsp)
 	if err != nil {
@@ -336,10 +338,11 @@ func (cfg *apiConfig) handleUpdateUsers(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "error updating user email and hashed password", http.StatusInternalServerError)
 	}
 	response := createLoginUserRes{
-		Id:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		Id:          user.ID,
+		Email:       user.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		IsChirpyRed: user.IsChirpyRed,
 	}
 	res_bytes, err := json.Marshal(response)
 	if err != nil {
@@ -386,6 +389,26 @@ func (cfg *apiConfig) handleDeleteChirp(w http.ResponseWriter, r *http.Request) 
 	if err := cfg.dbconfig.DeleteUsers(r.Context()); err != nil {
 		log.Printf("error deleting chirp: %s\n", err)
 		http.Error(w, "error deleting chirp", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg *apiConfig) handlePolkaRedWebhooks(w http.ResponseWriter, r *http.Request) {
+	var request UpgradeRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		log.Printf("unable to parse request: %s\n", err)
+		http.Error(w, "unable to parse request", http.StatusBadRequest)
+		return
+	}
+	if request.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	_, err := cfg.dbconfig.UpgradeUser(r.Context(), request.Data.UserId)
+	if err != nil {
+		log.Printf("user not found: %s", err)
+		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
