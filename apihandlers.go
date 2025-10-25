@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -120,6 +121,7 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
 	author_id := r.URL.Query().Get("author_id")
+	sort_order := r.URL.Query().Get("sort")
 	if author_id != "" {
 		// return chirps only for the author_id
 		auth_id, err := uuid.Parse(author_id)
@@ -145,6 +147,11 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 			}
 			chirpList = append(chirpList, chirpRes)
 		}
+		if sort_order == "desc" {
+			sort.Slice(chirpList, func(i, j int) bool {
+				return chirpList[i].CreatedAt.After(chirpList[j].CreatedAt)
+			})
+		}
 		data, err := json.Marshal(chirpList)
 		if err != nil {
 			log.Printf("error marshaling chirpList: %s\n", err)
@@ -169,6 +176,11 @@ func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request)
 			CreatedAt: chirp.CreatedAt,
 			UpdatedAt: chirp.UpdatedAt,
 			UserId:    chirp.UserID,
+		})
+	}
+	if sort_order == "desc" {
+		sort.Slice(allChirps, func(i, j int) bool {
+			return allChirps[i].CreatedAt.After(allChirps[j].CreatedAt)
 		})
 	}
 	data, err := json.Marshal(allChirps)
