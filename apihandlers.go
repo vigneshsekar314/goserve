@@ -28,8 +28,6 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		log.Printf("error in decoding request: %s/n", err)
 		return
 	}
-	// log.Printf(".user_id: %v and .body: %s", chirp.UserId, chirp.Body)
-	// authenticate user
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		log.Printf("error fetching token: %s\n", err)
@@ -42,11 +40,6 @@ func (cfg *apiConfig) handleCreateChirp(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "auth token unauthorized", http.StatusUnauthorized)
 		return
 	}
-	// if chirp.UserId != user_uuid {
-	// 	log.Printf("user unauthorized, payload userid does not match auth userid. payload_userid: %v and auth_userid: %v\n", chirp.UserId, user_uuid)
-	// 	http.Error(w, "auth token unauthorized", http.StatusUnauthorized)
-	// 	return
-	// }
 
 	validJson, err := validate_chirp(chirp)
 	if err != nil {
@@ -165,10 +158,6 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Request is invalid"))
 		return
 	}
-	expiry_in_secs := 60 * 60
-	if loginReq.ExpiresInSeconds > 0 && loginReq.ExpiresInSeconds < expiry_in_secs {
-		expiry_in_secs = loginReq.ExpiresInSeconds
-	}
 
 	user, err := cfg.dbconfig.GetUser(r.Context(), loginReq.Email)
 	if err != nil {
@@ -183,13 +172,36 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// generate jwt
-	signedToken, err := auth.MakeJWT(user.ID, cfg.auth_token, time.Duration(expiry_in_secs)*time.Second)
+	signedToken, err := auth.MakeJWT(user.ID, cfg.auth_token, time.Duration(time.Second*60*60))
+	if err != nil {
+		log.Printf("unable to generate JWT: %s\n", err)
+		http.Error(w, "unable to generate JWT", http.StatusInternalServerError)
+		return
+	}
+	// generate refresh token
+	refresh_token, err := auth.MakeRefreshToken()
+	if err != nil {
+		log.Printf("unable to generate refresh token: %s\n", err)
+		http.Error(w, "unable to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+	_, err = cfg.dbconfig.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     refresh_token,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().UTC().Add(time.Hour * 24 * 60),
+	})
+	if err != nil {
+		log.Printf("unable to save refresh token: %s\n", err)
+		http.Error(w, "unable to save refresh token", http.StatusInternalServerError)
+		return
+	}
 	loginResp := createLoginUserRes{
-		Id:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     signedToken,
+		Id:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        signedToken,
+		RefreshToken: refresh_token,
 	}
 	respBytes, err := json.Marshal(loginResp)
 	if err != nil {
@@ -199,6 +211,53 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write(respBytes)
+}
+
+func (cfg *apiConfig) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("invalid / no refresh token found: %s\n", err)
+		http.Error(w, "invalid / no refresh token found in headers", http.StatusUnauthorized)
+		return
+	}
+	user_id_from_db, err := cfg.dbconfig.GetAccessTokenFromRefreshToken(r.Context(), refresh_token)
+	if err != nil {
+		log.Printf("refresh token expired or not available in database%s\n", err)
+		http.Error(w, "refresh token expired or not available in database", http.StatusUnauthorized)
+		return
+	}
+	access_token, err := auth.MakeJWT(user_id_from_db, cfg.auth_token, time.Duration(time.Second*60*60))
+	if err != nil {
+		log.Printf("unable to generate access token: %s\n", err)
+		http.Error(w, "unable to generate access token", http.StatusUnauthorized)
+		return
+	}
+	resp_bytes, err := json.Marshal(auth.RefreshTokenResponse{
+		Token: access_token,
+	})
+	if err != nil {
+		log.Printf("unable to marshall access_token: %s\n", err)
+		http.Error(w, "unable to marshall access_token", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp_bytes)
+}
+
+func (cfg *apiConfig) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
+	refresh_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		log.Printf("invalid / no refresh token found: %s\n", err)
+		http.Error(w, "invalid / no refresh token found in headers", http.StatusUnauthorized)
+		return
+	}
+	_, err = cfg.dbconfig.RevokeRefreshToken(r.Context(), refresh_token)
+	if err != nil {
+		log.Printf("error on revoking refresh token: %s\n", err)
+		http.Error(w, "error on revoking refresh token", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {

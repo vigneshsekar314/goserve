@@ -42,6 +42,8 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps/{chirp_id}", cf.handleGetChirp)
 	serveMux.HandleFunc("GET /api/chirps", cf.handleGetAllChirps)
 	serveMux.HandleFunc("POST /api/chirps", cf.handleCreateChirp)
+	serveMux.HandleFunc("POST /api/refresh", cf.handleRefreshToken)
+	serveMux.HandleFunc("POST /api/revoke", cf.handleRevokeToken)
 	httpServe := http.Server{Handler: serveMux, Addr: ":8080"}
 	log.Printf("Server listening on port %v", httpServe.Addr)
 	log.Fatal(httpServe.ListenAndServe())
