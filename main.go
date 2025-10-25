@@ -2,13 +2,14 @@ package main
 
 import (
 	"database/sql"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"github.com/vigneshsekar314/goserve/internal/database"
 	"log"
 	"net/http"
 	"os"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/vigneshsekar314/goserve/internal/database"
 )
 
 type apiConfig struct {

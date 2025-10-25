@@ -119,6 +119,42 @@ func (cfg *apiConfig) handleGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handleGetAllChirps(w http.ResponseWriter, r *http.Request) {
+	author_id := r.URL.Query().Get("author_id")
+	if author_id != "" {
+		// return chirps only for the author_id
+		auth_id, err := uuid.Parse(author_id)
+		if err != nil {
+			log.Printf("unable to parse author_id: %s\n", err)
+			http.Error(w, "unable to parse author_id", http.StatusBadRequest)
+			return
+		}
+		chirps, err := cfg.dbconfig.GetChirpsByAuthor(r.Context(), auth_id)
+		if err != nil {
+			log.Printf("unable to fetch chirps for author: %s\n", err)
+			http.Error(w, "unable to fetch chirps for author", http.StatusNotFound)
+			return
+		}
+		chirpList := make([]ChirpResponse, 0)
+		for _, chirp := range chirps {
+			chirpRes := ChirpResponse{
+				Id:        chirp.ID,
+				Body:      chirp.Body,
+				CreatedAt: chirp.CreatedAt,
+				UpdatedAt: chirp.UpdatedAt,
+				UserId:    chirp.UserID,
+			}
+			chirpList = append(chirpList, chirpRes)
+		}
+		data, err := json.Marshal(chirpList)
+		if err != nil {
+			log.Printf("error marshaling chirpList: %s\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(data)
+		return
+	}
 	chirps, err := cfg.dbconfig.GetAllChirps(r.Context())
 	if err != nil {
 		log.Printf("error retrieving chirps: %s\n", err)
